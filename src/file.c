@@ -64,8 +64,13 @@ int write_file(tvi_t *tvi, win_t *win, const char *path, int first, int last) {
 	size_t bytes_count = 0;
 	size_t lines_count = 0;
 	for (int current=first; current<=last; current++) {
-		fprintf(file, "%s\n", win->text[current]);
-		bytes_count += strlen(win->text[current]) + 1;
+		size_t line_len = strlen(win->text[current]);
+		fwrite(win->text[current], 1, line_len, file);
+		bytes_count += line_len;
+		if (current < last) {
+			fwrite("\n", 1, 1, file);
+			bytes_count++;
+		}
 		lines_count++;
 	}
 

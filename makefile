@@ -45,7 +45,7 @@ $(BIN_DIR)/$(TARGET): libc $(OBJS)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(LDFLAGS) -o $@ $(CRT0) $(OBJS) -l:blibc.a -lgcc
 
-$(OBJ_DIR)/%.o: $(SRCDIR)/%.c
+$(OBJ_DIR)/%.o: $(SRCDIR)/%.c | libc
 	@echo '[compiling $<]'
 	@mkdir -p $(dir $@)
 	$(CC) $(COMMON_CFLAGS) -c $< -o $@
@@ -73,9 +73,7 @@ distclean: clean
 	@echo '[cleaning all generated files]'
 	rm -rf sysroot external
 
-libc: $(LIBC)
-
-$(LIBC):
+libc:
 	@echo "[LIBC] Preparing blibc"
 	@if [ ! -d "$(LIBC_DIR)" ]; then \
 		git clone $(LIBC_REPO) $(LIBC_DIR); \
