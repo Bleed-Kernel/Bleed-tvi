@@ -4,6 +4,15 @@
 #include <stdio.h>
 #include <tvi.h>
 
+static int tvi_get_key_wait(tvi_t *tvi) {
+	for (;;) {
+		int c = term_get_key();
+		if (c != EOF) return c;
+		render_blink_tick(tvi);
+		term_idle();
+	}
+}
+
 int prompt(tvi_t *tvi, const char *initial, int newline) {
 	strcpy(tvi->prompt, initial);
 	tvi->prompt_len = strlen(initial);
@@ -13,7 +22,7 @@ int prompt(tvi_t *tvi, const char *initial, int newline) {
 	render_flush(tvi);
 
 	for (;;) {
-		int c = term_get_key();
+		int c = tvi_get_key_wait(tvi);
 		if (term_is_delete(c)) {
 			if (tvi->prompt_len <= strlen(initial)) {
 				// exit prompt when it become empty
@@ -92,12 +101,16 @@ exit_prompt:
 // fix cursor position
 static void fix_cursor(tvi_t *tvi) {
 	win_t *win = tvi->focus_window;
-	int x = win->cursor_x;
-	int y = win->cursor_y;
-	size_t line_len = strlen(win->text[y]);
-	if ((size_t)x > line_len) {
-		win->cursor_x = line_len;
+	if (win->lines_count <= 0) {
+		win->cursor_y = 0;
+		win->cursor_x = 0;
+		return;
 	}
+	if (win->cursor_y < 0) win->cursor_y = 0;
+	if (win->cursor_y >= win->lines_count) win->cursor_y = win->lines_count - 1;
+	if (win->cursor_x < 0) win->cursor_x = 0;
+	size_t line_len = strlen(win->text[win->cursor_y]);
+	if ((size_t)win->cursor_x > line_len) win->cursor_x = (int)line_len;
 }
 
 int insert_mode(tvi_t *tvi) {
@@ -109,8 +122,12 @@ int insert_mode(tvi_t *tvi) {
 	win_t *win = tvi->focus_window;
 
 	for (;;) {
-		int c = term_get_key();
+		int c = tvi_get_key_wait(tvi);
 		if (c == '\033') break;
+		if (c == CRTL('C')) {
+			tvi->flags |= FLAG_QUIT;
+			break;
+		}
 		if (term_is_delete(c)) {
 			if (win->cursor_x == 0) {
 				if (win->cursor_y <= 0) {
@@ -138,7 +155,7 @@ int insert_mode(tvi_t *tvi) {
 			continue;
 		case CRTL('V'):
 			// bypass interpret and term key
-			c = getchar();
+			c = term_get_raw_char();
 			break;
 		case KEY_LEFT:
 			if (win->cursor_x <= 0) {
@@ -174,12 +191,23 @@ redraw:
 }
 
 void scroll_set(win_t *win, int scroll) {
+	int max_scroll = win->lines_count - win->height + 1;
+	if (max_scroll < 0) max_scroll = 0;
+	if (scroll < 0) scroll = 0;
+	if (scroll > max_scroll) scroll = max_scroll;
 	win->scroll = scroll;
 	render_window(&tvi, win);
 	render_flush(&tvi);
 }
 
 void cursor_set_y(win_t *win, int y) {
+	if (win->lines_count <= 0) {
+		win->cursor_y = 0;
+		scroll_set(win, 0);
+		return;
+	}
+	if (y < 0) y = 0;
+	if (y >= win->lines_count) y = win->lines_count - 1;
 	win->cursor_y = y;
 	if (y - 3 < win->scroll) {
 		if (y > 3) {
@@ -202,6 +230,13 @@ void cursor_add_y(win_t *win, int y) {
 
 // set cursor to first non blank char on the line
 void cursor_to_non_blank(win_t *win) {
+	if (win->lines_count <= 0) {
+		win->cursor_x = 0;
+		win->cursor_y = 0;
+		return;
+	}
+	if (win->cursor_y < 0) win->cursor_y = 0;
+	if (win->cursor_y >= win->lines_count) win->cursor_y = win->lines_count - 1;
 	int x = 0;
 	const char *line = win->text[win->cursor_y];
 	while (isblank(line[x])) {
@@ -213,6 +248,7 @@ void cursor_to_non_blank(win_t *win) {
 // return 1 if interpreted
 static int move_command(tvi_t *tvi, int c, int count) {
 	win_t *win = tvi->focus_window;
+	fix_cursor(tvi);
 
 	int have_count = count ? 1 : 0;
 	if (!have_count) count = 1;
@@ -221,7 +257,7 @@ static int move_command(tvi_t *tvi, int c, int count) {
 	if (term_is_delete(c)) {
 		goto backward;
 	}
-	int line_len = strlen(win->text[win->cursor_y]);
+	int line_len = (int)strlen(win->text[win->cursor_y]);
 
 	switch (c) {
 	case '^':
@@ -279,16 +315,16 @@ backward:
 			win->cursor_x += count;
 		}
 		return 1;
-	case '$':
-	case KEY_END:
-		if (count) {
-			if (win->lines_count >= win->cursor_y) {
-				term_bell();
-			} else if (win->lines_count - win->cursor_y < count-1) {
-				cursor_set_y(win, win->lines_count);
-			} else {
-				cursor_add_y(win, count-1);
-			}
+		case '$':
+		case KEY_END:
+			if (count) {
+				if (win->lines_count <= win->cursor_y) {
+					term_bell();
+				} else if (win->lines_count - win->cursor_y < count-1) {
+					cursor_set_y(win, win->lines_count - 1);
+				} else {
+					cursor_add_y(win, count-1);
+				}
 		}
 		win->cursor_x = INT_MAX;
 		return 1;
@@ -325,22 +361,26 @@ int tvi_main(tvi_t *tvi) {
 	render_window(tvi, win);
 	render_flush(tvi);
 	while (!(tvi->flags & FLAG_QUIT)) {
-		int c = term_get_key();
+		int c = tvi_get_key_wait(tvi);
+		if (c == CRTL('C')) {
+			tvi->flags |= FLAG_QUIT;
+			break;
+		}
 		int count = 0;
 
 		if (isdigit(c) && c != '0') {
 			// we have a count
 			while (isdigit(c)) {
-				count = c - '0';
-				c *= 10;
-				c = term_get_key();
+				count *= 10;
+				count += c - '0';
+				c = tvi_get_key_wait(tvi);
 			}
 		}
 
 		int buffer = '"';
 		if (c == '"') {
 			// we have a buffer
-			buffer = term_get_key();
+			buffer = tvi_get_key_wait(tvi);
 
 			// '"' is unammed
 			if (!isalpha(buffer) && !isdigit(buffer) && buffer != '_' && buffer != '"') {
@@ -348,9 +388,10 @@ int tvi_main(tvi_t *tvi) {
 				term_bell();
 				continue;
 			}
-			c = term_get_key();
+			c = tvi_get_key_wait(tvi);
 		}
 		win_t *win = tvi->focus_window;
+		fix_cursor(tvi);
 		size_t line_len = strlen(win->text[win->cursor_y]);
 		if (move_command(tvi, c, count)) {
 			render_status(tvi, win);

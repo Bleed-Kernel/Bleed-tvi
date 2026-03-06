@@ -29,7 +29,7 @@ void free_list(char **list, size_t count) {
 	free(list);
 }
 
-void win_free(tvi_t *tvi, win_t *win) {
+void win_free(win_t *win) {
 	free_list(win->text, win->lines_count);
 	free_list(win->files, win->files_count);
 }

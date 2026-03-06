@@ -1,48 +1,88 @@
-include config.mk
-
-BUILDDIR   = build
-SRCDIR     = src
-INCLUDEDIR = include
-
+TARGET = tvi
 VERSION = $(shell git describe --tags --always)
+PREFIX ?= /usr/local
+CC ?= gcc
 
-SRC = $(shell find $(SRCDIR) -name "*.c")
-OBJ = $(SRC:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
+SRCDIR = src
+INCLUDEDIR = include
+BUILDDIR = bin
+OBJ_DIR = $(BUILDDIR)/obj
+BIN_DIR = $(BUILDDIR)
+LIB_DIR = sysroot/lib
 
-CFLAGS += -I$(INCLUDEDIR)
-CFLAGS += -DTVI_VERSION='"$(VERSION)"' -DPREFIX='"$(PREFIX)"'
-CFLAGS += --std=c99 -D_POSIX_C_SOURCE=200809L
+LIBC_REPO = https://codeberg.org/Bleed-Kernel/blibc.git
+LIBC_DIR = external/blibc
+LIBC = $(LIB_DIR)/blibc.a
+CRT0 = $(LIB_DIR)/start.o
 
-all : $(BUILDDIR)/tvi
+SRCS = $(shell find $(SRCDIR) -name '*.c')
+OBJS = $(patsubst $(SRCDIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
 
-test : $(BUILDDIR)/tvi
-	@$(CC) -o $@ $^
+COMMON_CFLAGS = \
+    -I$(INCLUDEDIR) \
+    -Isysroot/include \
+	-ffreestanding \
+	-nostdinc \
+	-fno-stack-protector \
+    -DTVI_VERSION='"$(VERSION)"' \
+    -DPREFIX='"$(PREFIX)"' \
+    -std=c99 \
+    -D_POSIX_C_SOURCE=200809L \
+    -Wall \
+    -Wextra \
+    -Werror \
 
-$(BUILDDIR)/tvi : $(OBJ)
+LDFLAGS = \
+    -nostartfiles \
+    -nostdlib \
+    -static \
+    -L$(LIB_DIR)
+
+all: $(BIN_DIR)/$(TARGET)
+
+$(BIN_DIR)/$(TARGET): libc $(OBJS)
 	@echo '[linking into $@]'
-	@mkdir -p $(shell dirname $@)
-	@$(CC) -o $@ $^ $(CFLAGS)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(LDFLAGS) -o $@ $(CRT0) $(OBJS) -l:blibc.a -lgcc
 
-$(BUILDDIR)/%.o : $(SRCDIR)/%.c 
-	@echo '[compiling $^]'
-	@mkdir -p $(shell dirname $@)
-	@$(CC) -o $@ -c $^ $(CFLAGS)
+$(OBJ_DIR)/%.o: $(SRCDIR)/%.c
+	@echo '[compiling $<]'
+	@mkdir -p $(dir $@)
+	$(CC) $(COMMON_CFLAGS) -c $< -o $@
 
-install : all
-	@echo '[installing tvi]'
+install: all
+	@echo '[installing $(TARGET)]'
 	@mkdir -p $(DESTDIR)$(PREFIX)/bin
-	@cp $(BUILDDIR)/tvi $(DESTDIR)$(PREFIX)/bin/tvi
+	@cp $(BIN_DIR)/$(TARGET) $(DESTDIR)$(PREFIX)/bin/$(TARGET)
 	@echo '[installing manual]'
-	@mkdir -p $(DESTDIR)$(PREFIX)/share/tvi
-	@cp help.txt $(DESTDIR)$(PREFIX)/share/tvi
+	@mkdir -p $(DESTDIR)$(PREFIX)/share/$(TARGET)
+	@cp help.txt $(DESTDIR)$(PREFIX)/share/$(TARGET)
 
-uninstall :
-	rm -fr $(DESTDIR)$(PREFIX)/bin/tvi $(DESTDIR)$(PREFIX)/share/tvi
+uninstall:
+	rm -rf $(DESTDIR)$(PREFIX)/bin/$(TARGET) $(DESTDIR)$(PREFIX)/share/$(TARGET)
 
-clean :
-	rm -fr build
+test: $(BIN_DIR)/$(TARGET)
+	@echo '[running tests]'
+	@$(BIN_DIR)/$(TARGET)
 
-config.mk :
-	$(error run ./configure before running make)
+clean:
+	@echo '[cleaning build artifacts]'
+	rm -rf $(BUILDDIR)
 
-.PHONY : all $(BUILDIR)/tvi install uninstall clean
+distclean: clean
+	@echo '[cleaning all generated files]'
+	rm -rf sysroot external
+
+libc: $(LIBC)
+
+$(LIBC):
+	@echo "[LIBC] Preparing blibc"
+	@if [ ! -d "$(LIBC_DIR)" ]; then \
+		git clone $(LIBC_REPO) $(LIBC_DIR); \
+	fi
+	$(MAKE) -C $(LIBC_DIR)
+	@echo "[LIBC] Syncing sysroot"
+	@mkdir -p sysroot
+	@cp -r $(LIBC_DIR)/sysroot/* sysroot/
+
+.PHONY: all install uninstall test clean distclean libc

@@ -12,6 +12,9 @@ empty:
 		win->lines_count = 1;
 		win->text = malloc(sizeof(char*));
 		win->text[0] = strdup("");
+		win->cursor_x = 0;
+		win->cursor_y = 0;
+		win->scroll = 0;
 		return;
 	}
 	char line[LINE_MAX];
@@ -28,16 +31,20 @@ empty:
 	}
 	if (lines_count == 0) goto empty;
 	win->lines_count = lines_count;
+	win->cursor_x = 0;
+	win->cursor_y = 0;
+	win->scroll = 0;
 }
 
 void open_files(win_t *win, char *const*files, size_t files_count) {;
 	free_list(win->files, win->files_count);
 	win->files_count = files_count;
+	win->file_index = 0;
 	win->files = malloc(sizeof(char*) * files_count);
 	for (size_t i=0; i<files_count; i++) {
 		win->files[i] = strdup(files[i]);
 	}
-	read_file(win, files[0]);
+	read_file(win, win->files[0]);
 }
 
 int write_file(tvi_t *tvi, win_t *win, const char *path, int first, int last) {
