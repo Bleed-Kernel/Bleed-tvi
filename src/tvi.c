@@ -13,6 +13,9 @@ static int tvi_get_key_wait(tvi_t *tvi) {
 	}
 }
 
+void cursor_set_y(win_t *win, int y);
+void cursor_add_y(win_t *win, int y);
+
 int prompt(tvi_t *tvi, const char *initial, int newline) {
 	strcpy(tvi->prompt, initial);
 	tvi->prompt_len = strlen(initial);
@@ -171,6 +174,34 @@ int insert_mode(tvi_t *tvi) {
 			} else {
 				win->cursor_x++;
 			}
+			render_flush(tvi);
+			continue;
+		case KEY_START:
+			win->cursor_x = 0;
+			render_flush(tvi);
+			continue;
+		case KEY_END:
+			win->cursor_x = strlen(win->text[win->cursor_y]);
+			render_flush(tvi);
+			continue;
+		case KEY_UP:
+			if (win->cursor_y <= 0) {
+				term_bell();
+			} else {
+				cursor_add_y(win, -1);
+				fix_cursor(tvi);
+			}
+			render_status(tvi, win);
+			render_flush(tvi);
+			continue;
+		case KEY_DOWN:
+			if (win->cursor_y >= win->lines_count - 1) {
+				term_bell();
+			} else {
+				cursor_add_y(win, 1);
+				fix_cursor(tvi);
+			}
+			render_status(tvi, win);
 			render_flush(tvi);
 			continue;
 		}

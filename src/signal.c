@@ -1,4 +1,5 @@
 #include <signal.h>
+#include <unistd.h>
 #include <tvi.h>
 
 void sigint_handler(int signum) {
@@ -20,7 +21,18 @@ void sigwinch_handler(int signum) {
 	}
 }
 
+static void sigterm_handler(int signum) {
+	term_quit_raw_mode();
+	term_exit_fullscreen();
+	signal(signum, SIG_DFL);
+	raise(signum);
+}
+
 void signal_install_handlers(void) {
 	signal(SIGINT, sigint_handler);
 	signal(SIGWINCH, sigwinch_handler);
+	signal(SIGTERM, sigterm_handler);
+	signal(SIGHUP, sigterm_handler);
+	signal(SIGQUIT, sigterm_handler);
+	signal(SIGABRT, sigterm_handler);
 }

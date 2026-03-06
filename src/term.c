@@ -5,6 +5,7 @@
 #include <poll.h>
 #include <devices/keyboard.h>
 #include <devices/console.h>
+#include <ansii.h>
 #include <tvi.h>
 
 enum {
@@ -37,6 +38,12 @@ static int term_read_byte(void) {
 }
 
 void term_fetch_size(void) {
+	tty_winsize_t ws = {0};
+	if (ioctl(STDOUT_FILENO, TTY_IOCTL_GET_WINSIZE, &ws) == 0 && ws.cols > 0 && ws.rows > 0) {
+		term_width = (int)ws.cols;
+		term_height = (int)ws.rows;
+		return;
+	}
 	term_width = 80;
 	term_height = 25;
 }
@@ -87,9 +94,10 @@ static int term_read_event_key(int raw_char, int block) {
 }
 
 int term_get_raw_char(void) {
-	int c = term_read_event_key(1, 1);
-	if (c != EOF) return c;
-
+	if (raw_mode == RAW_MODE_TTY_FLAGS) {
+		int c = term_read_event_key(1, 1);
+		if (c != EOF) return c;
+	}
 	return term_read_byte();
 }
 
@@ -152,16 +160,55 @@ int term_have_input(void) {
 }
 
 int term_get_key(void) {
-	return term_read_event_key(0, 0);
+	if (raw_mode == RAW_MODE_TTY_FLAGS) {
+		return term_read_event_key(0, 0);
+	}
 	int c = term_read_byte();
 	if (c != '\033') return c;
 	if (!term_have_input()) return c;
 	int c2 = term_read_byte();
+	if (c2 == 'O') {
+		int c3 = term_read_byte();
+		switch (c3) {
+		case 'H':
+			return KEY_START;
+		case 'F':
+			return KEY_END;
+		default:
+			return '\033';
+		}
+	}
 	if (c2 != '[') {
 		push_char = c2;
 		return c;
 	}
 	int c3 = term_read_byte();
+	if (c3 >= '0' && c3 <= '9') {
+		int n = c3 - '0';
+		for (;;) {
+			if (!term_have_input()) return '\033';
+			int cx = term_read_byte();
+			if (cx >= '0' && cx <= '9') {
+				n = n * 10 + (cx - '0');
+				continue;
+			}
+			if (cx == '~') {
+				switch (n) {
+				case 1:
+				case 7:
+					return KEY_START;
+				case 4:
+				case 8:
+					return KEY_END;
+				default:
+					return '\033';
+				}
+			}
+			if (cx == 'H') return KEY_START;
+			if (cx == 'F') return KEY_END;
+			return '\033';
+		}
+	}
 	switch (c3) {
 	case 'A':
 		return KEY_UP;
@@ -200,18 +247,27 @@ int term_enter_fullscreen(void) {
 }
 
 void term_exit_fullscreen(void) {
+	printf(ANSI_RESET RESET_FG);
+	if (term_height > 0) {
+		term_goto(0, term_height-1);
+	}
+	printf(ESC"[K");
+	putchar('\n');
 	fflush(stdout);
-	return;
-
-	printf(ESC"[?1049l");
 }
 
 void term_clear_line(void) {
-	for (int i=cursor_x; i<term_width; i++) putchar(' ');
+	int stop = term_width;
+	if (stop > 0) stop--;
+	for (int i=cursor_x; i<stop; i++) putchar(' ');
 	term_goto(cursor_x, cursor_y);
 }
 
 void term_goto(int x, int y) {
+	if (x < 0) x = 0;
+	if (y < 0) y = 0;
+	if (term_width > 0 && x >= term_width) x = term_width - 1;
+	if (term_height > 0 && y >= term_height) y = term_height - 1;
 	cursor_x = x;
 	cursor_y = y;
 
@@ -233,13 +289,29 @@ int term_is_delete(int c) {
 }
 
 void term_reset_color(void) {
-	printf(ESC"[0m");
+	printf(RESET);
 }
 
 void term_inverse_color(void) {
-	printf(ESC"[0;7m");
+	printf(TVI_FG_STATUS ANSI_BOLD ANSI_UNDERLINE);
 }
 
 void term_error_color(void) {
-	printf(ESC"[0;41;37m");
+	printf(TVI_FG_ERROR ANSI_BOLD);
+}
+
+void term_non_text_color(void) {
+	printf(TVI_FG_NON_TEXT ANSI_BOLD);
+}
+
+void term_wrap_mark_color(void) {
+	printf(TVI_FG_WRAP_MARK ANSI_BOLD);
+}
+
+void term_prompt_color(void) {
+	printf(TVI_FG_PROMPT ANSI_BOLD);
+}
+
+void term_status_accent_color(void) {
+	printf(TVI_FG_STATUS_ACCENT ANSI_BOLD);
 }

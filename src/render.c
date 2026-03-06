@@ -111,6 +111,7 @@ int render_line(tvi_t *tvi, win_t *win, size_t index) {
 	term_reset_color();
 	term_clear_line();
 	if (index >= (size_t)win->lines_count) {
+		term_non_text_color();
 		printf("~");
 		term_reset_color();
 		return 0;
@@ -118,6 +119,7 @@ int render_line(tvi_t *tvi, win_t *win, size_t index) {
 	char *line = win->text[index];
 	size_t line_height = get_line_height(win, line);
 	if (y + line_height > (size_t)win->height - 1) {
+		term_wrap_mark_color();
 		printf("@@@");
 	} else {
 		if (line_height > 1) {
@@ -162,6 +164,7 @@ void render_status(tvi_t *tvi, win_t *win) {
 		printf("%s %d,%d", file, y+1, x+1);
 	}
 	term_goto(win->x + win->width - 3, win->y + win->height - 1);
+	term_status_accent_color();
 	printf("tvi");
 	term_reset_color();
 }
@@ -183,6 +186,8 @@ static void cursor_get_screen(tvi_t *tvi, int *screen_x, int *screen_y, char *un
 	*under = ' ';
 	if (tvi->flags & FLAG_PROMPT) {
 		*screen_x = (int)tvi->prompt_cursor;
+		if (term_width > 0 && *screen_x >= term_width) *screen_x = term_width - 1;
+		if (*screen_x < 0) *screen_x = 0;
 		*screen_y = term_height-1;
 		if (tvi->prompt_cursor < tvi->prompt_len) {
 			char c = tvi->prompt[tvi->prompt_cursor];
@@ -226,6 +231,17 @@ static void cursor_draw(tvi_t *tvi, int visible) {
 	char under;
 	cursor_get_screen(tvi, &x, &y, &under);
 
+	if (tvi->flags & FLAG_PROMPT) {
+		if (cursor_visible && saved_cursor_valid) {
+			term_goto(saved_cursor_x, saved_cursor_y);
+			putchar(saved_cursor_under);
+		}
+		saved_cursor_valid = 0;
+		term_goto(x, y);
+		cursor_visible = visible;
+		return;
+	}
+
 	if (cursor_visible && saved_cursor_valid) {
 		term_goto(saved_cursor_x, saved_cursor_y);
 		putchar(saved_cursor_under);
@@ -256,7 +272,11 @@ void render_prompt(tvi_t *tvi) {
 	term_goto(0, term_height-1);
 	term_reset_color();
 	term_clear_line();
-	printf("%.*s", (int)tvi->prompt_len, tvi->prompt);
+	term_prompt_color();
+	size_t max_len = tvi->prompt_len;
+	if (term_width > 1 && max_len > (size_t)(term_width - 1)) max_len = (size_t)(term_width - 1);
+	if (term_width <= 1) max_len = 0;
+	printf("%.*s", (int)max_len, tvi->prompt);
 	term_reset_color();
 }
 

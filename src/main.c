@@ -6,6 +6,11 @@ tvi_t tvi = {
 	.mode = MODE_VISUAL,
 };
 
+static void cleanup_terminal(void) {
+	term_quit_raw_mode();
+	term_exit_fullscreen();
+}
+
 int main(int argc, char **argv) {
 	int i=1;
 	for (;i<argc;i++) {
@@ -44,6 +49,6 @@ int main(int argc, char **argv) {
 	} else {
 		ex_main(&tvi);
 	}
-	term_exit_fullscreen();
+	cleanup_terminal();
 	return 0;
 }
