@@ -10,7 +10,7 @@ OBJ_DIR = $(BUILDDIR)/obj
 BIN_DIR = $(BUILDDIR)
 LIB_DIR = sysroot/lib
 
-LIBC_REPO = https://codeberg.org/Bleed-Kernel/blibc.git
+LIBC_REPO = https://github.com/Bleed-Kernel/blibc.git
 LIBC_DIR = external/blibc
 LIBC = $(LIB_DIR)/blibc.a
 CRT0 = $(LIB_DIR)/start.o
