@@ -2,9 +2,9 @@
 #include <termios.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <poll.h>
 #include <devices/keyboard.h>
 #include <devices/console.h>
+#include <libc/epoll.h>
 #include <ansii.h>
 #include <tvi.h>
 
@@ -151,12 +151,27 @@ void term_quit_raw_mode(void) {
 }
 
 int term_have_input(void) {
-	struct pollfd fd = {
-		.fd = STDIN_FILENO,
-		.events = POLLIN,
-	};
-	if (poll(&fd, 1, 0) < 0) return 0;
-	return fd.revents & POLLIN;
+    int epfd = epoll_create1(EPOLL_CLOEXEC);
+    if (epfd < 0) return 0;
+
+    struct epoll_event ev;
+    ev.events = EPOLLIN;
+    ev.data.fd = STDIN_FILENO;
+
+    if (epoll_ctl(epfd, EPOLL_CTL_ADD, STDIN_FILENO, &ev) < 0) {
+        close(epfd);
+        return 0;
+    }
+
+    struct epoll_event rev;
+    int nfds = epoll_wait(epfd, &rev, 1, 0);
+    close(epfd);
+    
+    if (nfds > 0 && (rev.events & EPOLLIN)) {
+        return 1;
+    }
+
+    return 0;
 }
 
 int term_get_key(void) {
