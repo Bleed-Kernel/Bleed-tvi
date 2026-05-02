@@ -28,11 +28,9 @@ COMMON_CFLAGS = \
     -DPREFIX='"$(PREFIX)"' \
     -std=c99 \
     -D_POSIX_C_SOURCE=200809L \
-	-Wunused-command-line-argument \
     -Wall \
     -Wextra \
 	-msse4.2 \
-    -Werror \
 
 LDFLAGS = \
     -nostartfiles \
