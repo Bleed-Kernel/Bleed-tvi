@@ -30,7 +30,6 @@ COMMON_CFLAGS = \
     -D_POSIX_C_SOURCE=200809L \
     -Wall \
     -Wextra \
-	-msse4.2 \
 
 LDFLAGS = \
     -nostartfiles \
