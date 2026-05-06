@@ -1,7 +1,7 @@
 TARGET = tvi
 VERSION = $(shell git describe --tags --always)
 PREFIX ?= /usr/local
-CC := gcc
+CC := x86_64-elf-gcc
 
 SRCDIR = src
 INCLUDEDIR = include
