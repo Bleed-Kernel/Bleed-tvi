@@ -10,9 +10,9 @@ OBJ_DIR = $(BUILDDIR)/obj
 BIN_DIR = $(BUILDDIR)
 LIB_DIR = sysroot/lib
 
-LIBC_REPO = https://github.com/Bleed-Kernel/blibc.git
-LIBC_DIR = external/blibc
-LIBC = $(LIB_DIR)/blibc.a
+BLIBC_REPO = https://github.com/Bleed-Kernel/blibc.git
+BLIBC_DIR = external/blibc
+BLIBC = $(LIB_DIR)/blibc.a
 CRT0 = $(LIB_DIR)/start.o
 
 SRCS = $(shell find $(SRCDIR) -name '*.c')
@@ -39,12 +39,12 @@ LDFLAGS = \
 
 all: $(BIN_DIR)/$(TARGET)
 
-$(BIN_DIR)/$(TARGET): libc $(OBJS)
+$(BIN_DIR)/$(TARGET): blibc $(OBJS)
 	@echo '[linking into $@]'
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(LDFLAGS) -o $@ $(CRT0) $(OBJS) -l:blibc.a -lgcc
 
-$(OBJ_DIR)/%.o: $(SRCDIR)/%.c | libc
+$(OBJ_DIR)/%.o: $(SRCDIR)/%.c | blibc
 	@echo '[compiling $<]'
 	@mkdir -p $(dir $@)
 	$(CC) $(COMMON_CFLAGS) -c $< -o $@
@@ -72,14 +72,14 @@ distclean: clean
 	@echo '[cleaning all generated files]'
 	rm -rf sysroot external
 
-libc:
-	@echo "[LIBC] Preparing blibc"
-	@if [ ! -d "$(LIBC_DIR)" ]; then \
-		git clone $(LIBC_REPO) $(LIBC_DIR); \
+blibc:
+	@echo "[BLIBC] Preparing blibc"
+	@if [ ! -d "$(BLIBC_DIR)" ]; then \
+		git clone $(BLIBC_REPO) $(BLIBC_DIR); \
 	fi
-	$(MAKE) -C $(LIBC_DIR)
-	@echo "[LIBC] Syncing sysroot"
+	$(MAKE) -C $(BLIBC_DIR)
+	@echo "[BLIBC] Syncing sysroot"
 	@mkdir -p sysroot
-	@cp -r $(LIBC_DIR)/sysroot/* sysroot/
+	@cp -r $(BLIBC_DIR)/sysroot/* sysroot/
 
-.PHONY: all install uninstall test clean distclean libc
+.PHONY: all install uninstall test clean distclean blibc
