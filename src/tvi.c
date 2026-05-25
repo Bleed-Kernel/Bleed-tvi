@@ -151,8 +151,8 @@ int insert_mode(tvi_t *tvi) {
 		switch (c){
 		case '\n':
 			text_insert_newline(win, win->cursor_x, win->cursor_y);
-			win->cursor_y++;
 			win->cursor_x = 0;
+			cursor_set_y(win, win->cursor_y + 1);
 			render_window(tvi, win);
 			render_flush(tvi);
 			continue;
@@ -247,11 +247,7 @@ void cursor_set_y(win_t *win, int y) {
 			scroll_set(win, 0);
 		}
 	} else if (y + 3 >= win->scroll + win->height - 1) {
-		if (y + 3 > win->lines_count) {
-			scroll_set(win, win->lines_count-win->height+2);
-		} else {
-			scroll_set(win, y + 3 - win->height + 1);
-		}
+    	scroll_set(win, y + 3 - win->height + 2);
 	}
 }
 
