@@ -4,7 +4,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
-#include <devices/hpet.h>
+#include <hpet.h>
 
 #include <tvi.h>
 

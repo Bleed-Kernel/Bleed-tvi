@@ -2,9 +2,9 @@
 #include <termios.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <devices/keyboard.h>
-#include <devices/console.h>
-#include <libc/epoll.h>
+#include <keyboard.h>
+#include <console.h>
+#include <sys/epoll.h>
 #include <ansii.h>
 #include <tvi.h>
 

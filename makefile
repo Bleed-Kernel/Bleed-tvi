@@ -1,7 +1,12 @@
 TARGET = tvi
 VERSION = $(shell git describe --tags --always)
 PREFIX ?= /usr/local
+
+ifeq ($(shell uname -s)$(shell uname -m),Darwinarm64)
+CC := x86_64-elf-gcc
+else
 CC := gcc
+endif
 
 SRCDIR = src
 INCLUDEDIR = include
@@ -21,6 +26,7 @@ OBJS = $(patsubst $(SRCDIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
 COMMON_CFLAGS = \
     -I$(INCLUDEDIR) \
     -Isysroot/include \
+    -Isysroot/include/bleed \
 	-ffreestanding \
 	-nostdinc \
 	-fno-stack-protector \
