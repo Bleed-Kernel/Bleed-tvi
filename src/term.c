@@ -249,7 +249,7 @@ void term_idle(void) {
 int term_enter_fullscreen(void) {
 	if (!isatty(STDOUT_FILENO)) return -1;
 
-	printf(ESC"[J");
+	printf(ESC"[2J");
 	term_goto(0, 0);
 	fflush(stdout);
 	return 0;
